@@ -21,88 +21,111 @@
  * @author Maxim Martynyuk <flashkot@mail.ru>
  * @version $Id$
  */
- 
-header("Content-type: text/javascript; charset: UTF-8");
-header("Vary: Accept-Encoding");
-error_reporting(0);
 
-$filename =  preg_replace("/[^0-9a-z\-_]+/i", "", $_GET['q']);
+define('CACHE_DIR' , realpath('cache/'));
 
-switch($_GET['type']){
-	case 'css':
-		$ext = '.css';
-		break;
-	case 'js':
-		$ext = '.js';
-		break;
-	default:
-		$ext = '.txt';		
+$in_file = realpath(rtrim($_SERVER['DOCUMENT_ROOT'], '\\/').'/'.ltrim($_SERVER['REQUEST_URI'], '\\/'));
+
+if(strrpos($in_file, realpath($_SERVER['DOCUMENT_ROOT'])) !== 0){
+	header("HTTP/1.0 404 Not Found");
+	exit;
 }
 
-$in_file = $filename.$ext;
-
 if(!is_file($in_file) or !is_readable($in_file)){
-	die;
+	header("HTTP/1.0 404 Not Found");
+	exit;
+}
+
+$file_type = false;
+
+if(strtolower(substr($in_file, -3)) == '.js'){
+	$file_type = 'js';
+	$Content_type = 'Content-type: text/javascript; charset: UTF-8';
+}elseif(strtolower(substr($in_file, -4)) == '.css'){
+	$file_type = 'css';
+	$Content_type = 'Content-type: text/css; charset: UTF-8';
+}else{
+	header("HTTP/1.0 404 Not Found");
+	exit;
 }
 
 $lmt = filemtime($in_file);
 
 if(!empty($_SERVER['HTTP_IF_MODIFIED_SINCE']) and (gmdate('D, d M Y H:i:s', $lmt) . ' GMT') == $_SERVER['HTTP_IF_MODIFIED_SINCE']){
-		header('Not Modified',true,304);
-		header('Expires:');
-		header('Cache-Control:');
-		exit;
+	header('Not Modified',true,304);
+	header('Expires:');
+	header('Cache-Control:');
+	exit;
 }
 
+header($Content_type);
+header('Vary: Accept-Encoding');
 header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $lmt) . ' GMT');
 
-$fd = fopen($in_file, 'rb');
-$content = fread($fd, filesize($in_file));
-fclose($fd);
+$compress_file = false;
 
-$encodings = array();
+if (function_exists('ob_gzhandler') && ini_get('zlib.output_compression')) {
+	$compress_file = false;
+}elseif(!isset($_SERVER['HTTP_ACCEPT_ENCODING']) or strrpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip')){
+	$compress_file = false;
+}else{
+	$compress_file = true;
+	$enc = in_array('x-gzip', explode(',', strtolower(str_replace(' ', '', $_SERVER['HTTP_ACCEPT_ENCODING'])))) ? "x-gzip" : "gzip";
+}
 
-if (isset($_SERVER['HTTP_ACCEPT_ENCODING']))
-	$encodings = explode(',', strtolower(preg_replace("/\s+/", "", $_SERVER['HTTP_ACCEPT_ENCODING'])));
+if(!$compress_file){
+	if($file_type == 'css'){
+		echo file_get_contents($in_file);
+		exit;
+	}else{
+		$cache_file = CACHE_DIR . '/' . md5($in_file) . '.' . $lmt;
 
-// Check for gzip header or northon internet securities
-if ((in_array('gzip', $encodings) || in_array('x-gzip', $encodings) || isset($_SERVER['---------------'])) && function_exists('ob_gzhandler') && !ini_get('zlib.output_compression')) {
-	$enc = in_array('x-gzip', $encodings) ? "x-gzip" : "gzip";
+		if(is_file($cache_file) and is_readable($cache_file)){
+			echo file_get_contents($in_file);
+			exit;
+		}
+		
+		define('JSMIN_AS_LIB', true); // prevents auto-run on include
+		include('jsmin_lib.php');
+		$jsMin = new JSMin(file_get_contents($in_file), false);
+		$cacheData = $jsMin->minify();
+		
+		$fp = @fopen($cache_file, "wb");
+		if ($fp) {
+			fwrite($fp, $cacheData);
+			fclose($fp);
+		}
+		echo $cacheData;
+		exit;
+	}	
+}else{
+	$cache_file = CACHE_DIR . '/' . md5($in_file) . '.' . $lmt . '.gz';
 
-	$cache_file = $filename.$ext.'.'.filemtime($in_file).'.gz';
-	
-	if(is_file($cache_file) or is_readable($cache_file)){
-		$fd = fopen($cache_file, 'rb');
-		$content = fread($fd, filesize($cache_file));
-		fclose($fd);
-		header("Content-Encoding: " . $enc);
-		echo $content;
+	if(is_file($cache_file) and is_readable($cache_file)){
+		echo file_get_contents($in_file);
 		exit;
 	}
-
-	define('JSMIN_AS_LIB', true); // prevents auto-run on include
-	include('jsmin_lib.php');
-	$jsMin = new JSMin($content, false);
-	$content = $jsMin->minify();
 	
-/*	$content = preg_replace('/\/\*.+\*\//U', '', $content);
-	$content = preg_replace('/\/\/.+$/m', '', $content);
-	$content = preg_replace('/^[\s\n\r\t]+/m', '', $content);*/
+	$content = file_get_contents($in_file);
+	
+	if($file_type == 'js'){
+		define('JSMIN_AS_LIB', true); // prevents auto-run on include
+		include('jsmin_lib.php');
+		$jsMin = new JSMin($content, false);
+		$content = $jsMin->minify();
+	}
 	
 	$cacheData = gzencode($content, 9, FORCE_GZIP);
-
-	// Write to file if possible
+	
 	$fp = @fopen($cache_file, "wb");
 	if ($fp) {
 		fwrite($fp, $cacheData);
 		fclose($fp);
 	}
-
-	// Output
+	
 	header("Content-Encoding: " . $enc);
 	echo $cacheData;
 	exit;
+	
 }
-
-echo $content;
 ?>
