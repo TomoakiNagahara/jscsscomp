@@ -1,4 +1,4 @@
 RewriteEngine on
 	
-RewriteCond %{REMOTE_HOST} -f
-RewriteRule ^(.*)\.(js|css)$ jscsscomp/jscsscomp.php [L, NC]
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^(.*)\.(js|css)$ jscsscomp/jscsscomp.php [L,NC]
