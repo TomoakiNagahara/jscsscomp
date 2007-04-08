@@ -1,0 +1,17 @@
+#summary Installation of the jscsscomp
+#labels Featured,Phase-Deploy
+
+1. get archive with jscsscomp
+
+2. extract archive somethere on your disc
+
+3. copy `jscsscomp` folder to the document root of your site
+
+4. add this code to the .htaccess file
+{{{
+RewriteEngine on
+	
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^(.*)\.(js|css)$ jscsscomp/jscsscomp.php [L,NC]
+}}}
+or simply copy one from the distribution
