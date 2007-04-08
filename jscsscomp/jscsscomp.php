@@ -23,16 +23,20 @@
  */
 
 define('CACHE_DIR' , realpath('cache/'));
+define('FILES_ENCODING' , 'UTF-8');
 
-$in_file = realpath(rtrim($_SERVER['DOCUMENT_ROOT'], '\\/').'/'.ltrim($_SERVER['REQUEST_URI'], '\\/'));
+$in_file = realpath(rtrim($_SERVER['DOCUMENT_ROOT'], '\\/')
+                    . '/' . ltrim($_SERVER['REQUEST_URI'], '\\/'));
 
 if(strrpos($in_file, realpath($_SERVER['DOCUMENT_ROOT'])) !== 0){
-	header("HTTP/1.0 404 Not Found");
+	// TODO: output correct code then file not in doc_root
+	header('Not Found', true, 404);
 	exit;
 }
 
 if(!is_file($in_file) or !is_readable($in_file)){
-	header("HTTP/1.0 404 Not Found");
+	// TODO: output correct code then file is not exist or not readable
+	header('Not Found', true, 404);
 	exit;
 }
 
@@ -40,36 +44,38 @@ $file_type = false;
 
 if(strtolower(substr($in_file, -3)) == '.js'){
 	$file_type = 'js';
-	$Content_type = 'Content-type: text/javascript; charset: UTF-8';
+	$Content_type = 'text/javascript; charset: ' . FILES_ENCODING;
 }elseif(strtolower(substr($in_file, -4)) == '.css'){
 	$file_type = 'css';
-	$Content_type = 'Content-type: text/css; charset: UTF-8';
+	$Content_type = 'text/css; charset: ' . FILES_ENCODING;
 }else{
+	// TODO: output correct code then file extension is unknown
 	header("HTTP/1.0 404 Not Found");
 	exit;
 }
 
 $lmt = filemtime($in_file);
+$lmt_str = gmdate('D, d M Y H:i:s', $lmt) . ' GMT';
 
-if(!empty($_SERVER['HTTP_IF_MODIFIED_SINCE']) and (gmdate('D, d M Y H:i:s', $lmt) . ' GMT') == $_SERVER['HTTP_IF_MODIFIED_SINCE']){
-	header('Not Modified',true,304);
+if(!empty($_SERVER['HTTP_IF_MODIFIED_SINCE']) and $lmt_str == $_SERVER['HTTP_IF_MODIFIED_SINCE']){
+	header('Not Modified', true, 304);
 	header('Expires:');
 	header('Cache-Control:');
 	exit;
 }
 
-header($Content_type);
+header('Content-type: ' . $Content_type);
 header('Vary: Accept-Encoding');
-header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $lmt) . ' GMT');
+header('Last-Modified: ' . $lmt_str);
 
 $compress_file = false;
 
 if (function_exists('ob_gzhandler') && ini_get('zlib.output_compression')) {
 	$compress_file = false;
-}elseif(!isset($_SERVER['HTTP_ACCEPT_ENCODING']) or strrpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip')){
+}elseif(!isset($_SERVER['HTTP_ACCEPT_ENCODING']) or strrpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip') === false){
 	$compress_file = false;
 }else{
-	$compress_file = true;
+//	$compress_file = true;
 	$enc = in_array('x-gzip', explode(',', strtolower(str_replace(' ', '', $_SERVER['HTTP_ACCEPT_ENCODING'])))) ? "x-gzip" : "gzip";
 }
 
@@ -81,14 +87,13 @@ if(!$compress_file){
 		$cache_file = CACHE_DIR . '/' . md5($in_file) . '.' . $lmt;
 
 		if(is_file($cache_file) and is_readable($cache_file)){
-			echo file_get_contents($in_file);
+			echo file_get_contents($cache_file);
 			exit;
 		}
 		
-		define('JSMIN_AS_LIB', true); // prevents auto-run on include
-		include('jsmin_lib.php');
-		$jsMin = new JSMin(file_get_contents($in_file), false);
-		$cacheData = $jsMin->minify();
+		include('class.JavaScriptPacker.php');
+		$jsPacker = new JavaScriptPacker(file_get_contents($in_file));
+ 		$cacheData = $jsPacker->pack();
 		
 		$fp = @fopen($cache_file, "wb");
 		if ($fp) {
@@ -102,17 +107,18 @@ if(!$compress_file){
 	$cache_file = CACHE_DIR . '/' . md5($in_file) . '.' . $lmt . '.gz';
 
 	if(is_file($cache_file) and is_readable($cache_file)){
-		echo file_get_contents($in_file);
+		header("Content-Encoding: " . $enc);
+		echo file_get_contents($cache_file);
 		exit;
 	}
 	
 	$content = file_get_contents($in_file);
 	
 	if($file_type == 'js'){
-		define('JSMIN_AS_LIB', true); // prevents auto-run on include
-		include('jsmin_lib.php');
-		$jsMin = new JSMin($content, false);
-		$content = $jsMin->minify();
+		
+		include('class.JavaScriptPacker.php');
+		$jsPacker = new JavaScriptPacker($content, 'None', false, false);
+ 		$content = $jsPacker->pack();
 	}
 	
 	$cacheData = gzencode($content, 9, FORCE_GZIP);
@@ -125,7 +131,6 @@ if(!$compress_file){
 	
 	header("Content-Encoding: " . $enc);
 	echo $cacheData;
-	exit;
-	
+	exit;	
 }
 ?>
