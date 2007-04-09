@@ -26,7 +26,7 @@ define('CACHE_DIR' , realpath('cache/'));
 define('FILES_ENCODING' , 'UTF-8');
 
 $in_file = realpath(rtrim($_SERVER['DOCUMENT_ROOT'], '\\/')
-                    . '/' . ltrim($_SERVER['REQUEST_URI'], '\\/'));
+                    . '/' . ltrim($_GET['q'], '\\/'));
 
 if(strrpos($in_file, realpath($_SERVER['DOCUMENT_ROOT'])) !== 0){
 	// TODO: output correct code then file not in doc_root
@@ -75,7 +75,7 @@ if (function_exists('ob_gzhandler') && ini_get('zlib.output_compression')) {
 }elseif(!isset($_SERVER['HTTP_ACCEPT_ENCODING']) or strrpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip') === false){
 	$compress_file = false;
 }else{
-//	$compress_file = true;
+	$compress_file = true;
 	$enc = in_array('x-gzip', explode(',', strtolower(str_replace(' ', '', $_SERVER['HTTP_ACCEPT_ENCODING'])))) ? "x-gzip" : "gzip";
 }
 
@@ -115,9 +115,8 @@ if(!$compress_file){
 	$content = file_get_contents($in_file);
 	
 	if($file_type == 'js'){
-		
 		include('class.JavaScriptPacker.php');
-		$jsPacker = new JavaScriptPacker($content, 'None', false, false);
+		$jsPacker = new JavaScriptPacker($content, 0, false, false);
  		$content = $jsPacker->pack();
 	}
 	
