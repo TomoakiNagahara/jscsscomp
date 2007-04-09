@@ -25,15 +25,18 @@
 define('CACHE_DIR' , realpath('cache/'));
 define('FILES_ENCODING' , 'UTF-8');
 
+// get real path to the requested file
 $in_file = realpath(rtrim($_SERVER['DOCUMENT_ROOT'], '\\/')
                     . '/' . ltrim($_GET['q'], '\\/'));
 
+// requested file is wihin document root?
 if(strrpos($in_file, realpath($_SERVER['DOCUMENT_ROOT'])) !== 0){
 	// TODO: output correct code then file not in doc_root
 	header('Not Found', true, 404);
 	exit;
 }
 
+// requested file is real file and is readable?
 if(!is_file($in_file) or !is_readable($in_file)){
 	// TODO: output correct code then file is not exist or not readable
 	header('Not Found', true, 404);
@@ -42,6 +45,7 @@ if(!is_file($in_file) or !is_readable($in_file)){
 
 $file_type = false;
 
+// we process only files with 'js' or 'css' extensions
 if(strtolower(substr($in_file, -3)) == '.js'){
 	$file_type = 'js';
 	$Content_type = 'text/javascript; charset: ' . FILES_ENCODING;
@@ -54,9 +58,11 @@ if(strtolower(substr($in_file, -3)) == '.js'){
 	exit;
 }
 
+// get file modification time and build L-M string for HTTP headers
 $lmt = filemtime($in_file);
 $lmt_str = gmdate('D, d M Y H:i:s', $lmt) . ' GMT';
 
+// if file is not modified since last request send 304 HTTP header
 if(!empty($_SERVER['HTTP_IF_MODIFIED_SINCE']) and $lmt_str == $_SERVER['HTTP_IF_MODIFIED_SINCE']){
 	header('Not Modified', true, 304);
 	header('Expires:');
