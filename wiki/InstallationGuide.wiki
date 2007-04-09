@@ -7,11 +7,13 @@
 
 3. copy `jscsscomp` folder to the document root of your site
 
-4. add this code to the .htaccess file
+5. `jscsscomp/cache/` dir should be writable for your scripts (or caching will not work)
+
+6. add this code to the .htaccess file
 {{{
 RewriteEngine on
 	
 RewriteCond %{REQUEST_FILENAME} -f
-RewriteRule ^(.*)\.(js|css)$ jscsscomp/jscsscomp.php [L,NC]
+RewriteRule ^(.*\.)(js|css)$ jscsscomp/jscsscomp.php?q=$1$2 [L,NC]
 }}}
 or simply copy one from the distribution
