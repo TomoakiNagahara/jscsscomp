@@ -1,4 +1,4 @@
 RewriteEngine on
 	
 RewriteCond %{REQUEST_FILENAME} -f
-RewriteRule ^(.*)\.(js|css)$ jscsscomp/jscsscomp.php [L,NC]
+RewriteRule ^(.*\.)(js|css)$ jscsscomp/jscsscomp.php?q=$1$2 [L,NC]
