@@ -22,63 +22,118 @@
  * @version $Id$
  */
 
+//error_reporting(E_ALL);
+//ini_set('display_errors', true);
+
 define('CACHE_DIR' , realpath('cache/'));
 define('FILES_ENCODING' , 'UTF-8');
 
-// get real path to the requested file
-$in_file = realpath(rtrim($_SERVER['DOCUMENT_ROOT'], '\\/')
-                    . '/' . ltrim($_GET['q'], '\\/'));
+// Disable zlib compression, if present, for duration of this script.  
+// So we don't double gzip 
+ini_set("zlib.output_compression", "Off");
 
-// requested file is wihin document root?
-if(strrpos($in_file, realpath($_SERVER['DOCUMENT_ROOT'])) !== 0){
-	// TODO: output correct code then file not in doc_root
-	header('Not Found', true, 404);
-	exit;
-}
+// Set the cache control header
+// http 1.1 browsers MUST revalidate -- always
+header("Cache-Control: must-revalidate");
+header('Vary: Accept-Encoding');
 
-// requested file is real file and is readable?
-if(!is_file($in_file) or !is_readable($in_file)){
-	// TODO: output correct code then file is not exist or not readable
-	header('Not Found', true, 404);
-	exit;
-}
+// this is filetypes counters. used to send correct content-type header
+$js_files = 0;
+$css_files = 0;
 
-$file_type = false;
+// convert request param 'q' to files list 
+$files =  explode(',', $_GET['q']);
 
-// we process only files with 'js' or 'css' extensions
-if(strtolower(substr($in_file, -3)) == '.js'){
-	$file_type = 'js';
-	$Content_type = 'text/javascript; charset: ' . FILES_ENCODING;
-}elseif(strtolower(substr($in_file, -4)) == '.css'){
-	$file_type = 'css';
-	$Content_type = 'text/css; charset: ' . FILES_ENCODING;
-}else{
+array_walk($files, 'path_trim');
+
+if($js_files + $css_files == 0){
 	// TODO: output correct code then file extension is unknown
 	header("HTTP/1.0 404 Not Found");
+	print_r($_GET['q']);
 	exit;
 }
 
-// get file modification time and build L-M string for HTTP headers
-$lmt = filemtime($in_file);
+$lmt = 0;
+$longFilename = ''; // This is generated for the Hash
+
+foreach($files as $id => $file){
+	if(!empty($file)){
+		$longFilename .= $file;
+		$fileLmt = @filemtime($file);
+		if($fileLmt > $lmt){
+			$lmt = $fileLmt;
+		}
+	}else{
+		unset($files[$id]);
+	}
+}
+
 $lmt_str = gmdate('D, d M Y H:i:s', $lmt) . ' GMT';
 
-// if file is not modified since last request send 304 HTTP header
-if(!empty($_SERVER['HTTP_IF_MODIFIED_SINCE']) and $lmt_str == $_SERVER['HTTP_IF_MODIFIED_SINCE']){
-	header('Not Modified', true, 304);
-	header('Expires:');
-	header('Cache-Control:');
+//print_r($files);
+
+/////////////////////////////////////////////////////////////////////////////
+// Begin *BROWSER* Cache Control
+
+// Here we check to see if the browser is doing a cache check
+// First we'll do an etag check which is to see if we've already stored
+// the hash of the filename . '-' . $newestFile.  If we find it
+// nothing has changed so let the browser know and then die.  If we
+// don't find it (or it's a mismatch) something has changed so force
+// the browser to ignore the cache.
+
+$fileHash = md5($longFilename);   // This generates a key from the collective file names
+$hash = $fileHash . '-'.$lmt;     // This appends the newest file date to the key.
+$headers = getallheaders();       // Get all the headers the browser sent us.
+
+if (preg_match("/$hash/i", $headers['If-None-Match'])) {// Look for a hash match
+	// Our hash+filetime was matched with the browser etag value so nothing
+	// has changed.  Just send the last modified date and a 304 (nothing changed) 
+	// header and exit.
+	header('Last-Modified: '.$lmt_str.' GMT', true, 304);
 	exit;
+}
+
+// We're still alive so save the hash+latest modified time in the e-tag.
+header("ETag: \"{$hash}\"");
+
+// For an additional layer of protection we'll see if the browser
+// sent us a last-modified date and compare that with $newestFile
+// If there's no change we'll send a cache control header and die.
+
+if (isset($headers['If-Modified-Since'])) {
+   if ($newestFile <= strtotime($headers['If-Modified-Since'])) {
+      // No change so send a 304 header and terminate
+       header('Last-Modified: '.$lmt_str.' GMT', true, 304);
+       exit;
+    }
+}
+
+// Set the last modified date as the date of the NEWEST file in the list.
+header('Last-Modified: '.$lmt_str.' GMT');
+
+// End *BROWSER* Cache Control
+/////////////////////////////////////////////////////////////////////////////
+
+
+// we process only files with 'js' or 'css' extensions
+if($js_files > 0){
+	$file_type = 'js';
+	$Content_type = 'text/javascript; charset: ' . FILES_ENCODING;
+}
+if($css_files > 0){
+	$file_type = 'css';
+	$Content_type = 'text/css; charset: ' . FILES_ENCODING;
+}
+if($css_files > 0 and $js_files > 0){
+	$Content_type = 'text/plain; charset: ' . FILES_ENCODING;
 }
 
 header('Content-type: ' . $Content_type);
-header('Vary: Accept-Encoding');
-header('Last-Modified: ' . $lmt_str);
 
 $compress_file = false;
 
-if (function_exists('ob_gzhandler') && ini_get('zlib.output_compression')) {
-	$compress_file = false;
-}elseif(!isset($_SERVER['HTTP_ACCEPT_ENCODING']) or strrpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip') === false){
+if(!isset($_SERVER['HTTP_ACCEPT_ENCODING']) or strrpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip') === false){
 	$compress_file = false;
 }else{
 	$compress_file = true;
@@ -87,10 +142,10 @@ if (function_exists('ob_gzhandler') && ini_get('zlib.output_compression')) {
 
 if(!$compress_file){
 	if($file_type == 'css'){
-		echo file_get_contents($in_file);
+		echo compose_file($files);
 		exit;
 	}else{
-		$cache_file = CACHE_DIR . '/' . md5($in_file) . '.' . $lmt;
+		$cache_file = CACHE_DIR . '/' . $hash;
 
 		if(is_file($cache_file) and is_readable($cache_file)){
 			echo file_get_contents($cache_file);
@@ -98,7 +153,7 @@ if(!$compress_file){
 		}
 		
 		include('class.JavaScriptPacker.php');
-		$jsPacker = new JavaScriptPacker(file_get_contents($in_file));
+		$jsPacker = new JavaScriptPacker(compose_file($files));
  		$cacheData = $jsPacker->pack();
 		
 		$fp = @fopen($cache_file, "wb");
@@ -110,15 +165,15 @@ if(!$compress_file){
 		exit;
 	}	
 }else{
-	$cache_file = CACHE_DIR . '/' . md5($in_file) . '.' . $lmt . '.gz';
+	$cache_file = CACHE_DIR . '/' . $hash . '.gz';
 
 	if(is_file($cache_file) and is_readable($cache_file)){
 		header("Content-Encoding: " . $enc);
-		echo file_get_contents($cache_file);
+		echo compose_file($files);
 		exit;
 	}
 	
-	$content = file_get_contents($in_file);
+	$content = compose_file($files);
 	
 	if($file_type == 'js'){
 		include('class.JavaScriptPacker.php');
@@ -137,5 +192,43 @@ if(!$compress_file){
 	header("Content-Encoding: " . $enc);
 	echo $cacheData;
 	exit;	
+}
+
+
+function path_trim(&$val){
+	global $js_files, $css_files;
+	
+	// TODO: check what this function allow acces only to files we can show.
+	
+	// cut off anything wat looks like /../ folder
+	$val = str_replace('../', '', trim($val, '\\/'));
+	
+	// check what file is with JS or CSS extension
+	if(!preg_match('/\.(js|css)$/i',$val, $matches)){
+		$val = '';
+		return false;		
+	}
+	
+	if(strtolower($matches[1]) == 'js'){
+		++$js_files;
+	}elseif(strtolower($matches[1]) == 'css'){
+		++$css_files;
+	}
+
+	//add DOCUMENT_ROOT and return full path to a file
+	$val = rtrim($_SERVER['DOCUMENT_ROOT'], '\\/') . '/' . $val;
+	
+	if(!is_readable($val) and !is_file($val)){
+		$val = '';
+		return false;
+	}
+}
+
+function compose_file($files){
+	$content = '';
+	foreach($files as $file){
+		$content .= file_get_contents($file) . "\n\n";
+	}
+	return $content;
 }
 ?>
