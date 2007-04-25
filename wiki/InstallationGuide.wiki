@@ -1,6 +1,7 @@
 #summary Installation of the jscsscomp
 #labels Featured,Phase-Deploy
 
+==Install==
 1. get archive with jscsscomp
 
 2. extract archive somethere on your disc
@@ -17,3 +18,38 @@ RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^(.*\.)(js|css)$ jscsscomp/jscsscomp.php?q=$1$2 [L,NC]
 }}}
 or simply copy one from the distribution
+
+From this point all your JS and CSS files should be served compressed by gzip (if browser accepts gzip compression) or by [http://dean.edwards.name/packer/ packer] (only for JS files)
+
+==One file trick==
+(this part is copied from [http://www.hunlock.com/blogs/Supercharged_Javascript here])
+
+If you use a lot of JS (or CSS) files
+
+{{{
+<!-- Namespace source file -->  
+<script src = "yahoo.js" ></script> 
+ 
+<!-- Dependency source files -->  
+<script src = "dom.js" ></script> 
+<script src = "event.js" ></script> 
+<script src = "effects/dragdrop.js" ></script> 
+ 
+<!-- Slider source file -->  
+<script src = "slider.js" ></script>    
+}}}
+
+you can get all this files (compressed!) in one request: 
+
+{{{
+<script src = "/jscsscomp/yahoo.js, dom.js, event.js, effects/dragdrop.js, slider.js"></script>
+}}}
+
+==Doing without ModRewrite==
+If mod-rewrite is not installed, or you can't use it write URLs in this way:
+
+{{{
+<script src = "/jscsscomp/jscsscomp.php?q=dom.js" ></script> 
+
+<script src = "/jscsscomp/jscsscomp.php?q=yahoo.js, event.js, effects/dragdrop.js, slider.js"></script>
+}}}
