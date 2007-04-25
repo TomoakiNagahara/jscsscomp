@@ -169,7 +169,7 @@ if(!$compress_file){
 
 	if(is_file($cache_file) and is_readable($cache_file)){
 		header("Content-Encoding: " . $enc);
-		echo compose_file($files);
+		echo file_get_contents($cache_file);
 		exit;
 	}
 	
@@ -204,7 +204,7 @@ function path_trim(&$val){
 	$val = str_replace('../', '', trim($val, '\\/'));
 	
 	// check what file is with JS or CSS extension
-	if(!preg_match('/\.(js|css)$/i',$val, $matches)){
+	if(!preg_match('/\.(js|css)$/iD',$val, $matches)){
 		$val = '';
 		return false;		
 	}
