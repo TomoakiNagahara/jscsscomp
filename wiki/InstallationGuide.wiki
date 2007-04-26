@@ -2,6 +2,9 @@
 #labels Featured,Phase-Deploy
 
 ==Install==
+
+*note:* You need PHP5 (because of class.!JavaScriptPacker.php)
+
 1. get archive with jscsscomp
 
 2. extract archive somethere on your disc
@@ -10,7 +13,7 @@
 
 5. `jscsscomp/cache/` dir should be writable for your scripts (or caching will not work)
 
-6. add this code to the .htaccess file
+6. add this code to the .htaccess file in doc root
 {{{
 RewriteEngine on
 	
@@ -45,11 +48,14 @@ you can get all this files (compressed!) in one request:
 <script src = "/jscsscomp/yahoo.js, dom.js, event.js, effects/dragdrop.js, slider.js"></script>
 }}}
 
+*note:* i guess you understand what mixing .css and .js files in one request is not a good idea... (;
+
 ==Doing without ModRewrite==
-If mod-rewrite is not installed, or you can't use it write URLs in this way:
+If mod-rewrite is not installed, or you can't use it, write URLs in this way:
 
 {{{
 <script src = "/jscsscomp/jscsscomp.php?q=dom.js" ></script> 
 
 <script src = "/jscsscomp/jscsscomp.php?q=yahoo.js, event.js, effects/dragdrop.js, slider.js"></script>
 }}}
+
