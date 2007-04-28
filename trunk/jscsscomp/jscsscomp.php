@@ -152,8 +152,15 @@ if(!$compress_file){
 			exit;
 		}
 		
-		include('class.JavaScriptPacker.php');
-		$jsPacker = new JavaScriptPacker(compose_file($files));
+		// include('class.JavaScriptPacker.php');
+		// $jsPacker = new JavaScriptPacker(compose_file($files));
+	    // $cacheData = $jsPacker->pack();
+
+	    define('JSMIN_AS_LIB', true); // prevents auto-run on include
+	    include('jsmin.php');
+        $jsMin = new JSMin(compose_file($files), false);
+        $cacheData = $jsMin->minify();
+	    
  		$cacheData = $jsPacker->pack();
 		
 		$fp = @fopen($cache_file, "wb");
@@ -176,9 +183,13 @@ if(!$compress_file){
 	$content = compose_file($files);
 	
 	if($file_type == 'js'){
-		include('class.JavaScriptPacker.php');
-		$jsPacker = new JavaScriptPacker($content, 0, false, false);
- 		$content = $jsPacker->pack();
+		//include('class.JavaScriptPacker.php');
+		//$jsPacker = new JavaScriptPacker($content, 0, false, false);
+ 		//$content = $jsPacker->pack();
+	    define('JSMIN_AS_LIB', true); // prevents auto-run on include
+	    include('jsmin.php');
+        $jsMin = new JSMin($content, false);
+        $content = $jsMin->minify();
 	}
 	
 	$cacheData = gzencode($content, 9, FORCE_GZIP);
