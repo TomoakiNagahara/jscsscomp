@@ -242,4 +242,3 @@ function compose_file($files){
 	}
 	return $content;
 }
-?>
