@@ -11,12 +11,14 @@
 5. `jscsscomp/cache/` dir should be writable for your scripts (or caching will not work)
 
 6. add this code to the .htaccess file in doc root
+
 ```
 RewriteEngine on
 	
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^(.*\.)(js|css)$ jscsscomp/jscsscomp.php?q=$1$2 [L,NC]
 ```
+
 or simply copy one from the distribution
 
 From this point all your JS and CSS files should be served compressed by gzip (if browser accepts gzip compression) or by [packer](http://dean.edwards.name/packer/) (only for JS files)
